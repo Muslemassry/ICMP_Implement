@@ -14,18 +14,24 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <time.h>
-
+#include <netinet/ip_icmp.h>
 // timeout for socket to wait for a receive command
 #define MAX_TIMEOUT = 1
 
 // in order to exit the ping loop once CTR+C is pressed
 int to_be_interrupted = 1;
 
+struct ping_pkt
+{
+	struct icmphdr hdr;
+	char msg[64-sizeof(struct icmphdr)];
+};
+
 struct in_addr* get_host_address (char * host_name);
 void print_fatal_msg(char *msg);
 void print_fatal_msgs(char *msg1, char *msg2);
 int char_strlen(const char *str);
-void send_ping(int socket, struct sockaddr_in address, char* to_ip);
+void send_ping(int socket, struct sockaddr_in address, char* to_ip, int *ttl);
 void do_interrupt(int value);
 
 int main(void) {
@@ -33,17 +39,19 @@ int main(void) {
 	struct in_addr *address;
 	char host_name[1024];
 	char buffer[1024];
-
+	int ttl;
 	// times for the total report ------>> tfstart, tfend
 	struct timespec tfstart, tfend;
 
 /*	printf("enter host name:\n");
-	scanf("%s", &host_name);*/
+	scanf("%s", &host_name);
+	printf("enter ttl:\n");
+	scanf("%d", &ttl);*/
 
 	// the following to lines are for testing
 	strcpy(host_name, "smtp.wp.pl");
 	printf("the host name is: %s\n", host_name);
-
+	ttl = 30;
 
 	char * host_name_ptr = host_name;
 	struct in_addr* distination_add = get_host_address(host_name_ptr);
@@ -63,7 +71,7 @@ int main(void) {
 	clock_gettime(CLOCK_MONOTONIC, &tfstart);
 
 	// send
-	send_ping(a_row_socket, sockaddr_in_destination, inet_ntoa(*distination_add));
+	send_ping(a_row_socket, sockaddr_in_destination, inet_ntoa(*distination_add), &ttl);
 
 	// set the end time
 	clock_gettime(CLOCK_MONOTONIC, &tfend);
@@ -105,11 +113,33 @@ void do_interrupt(int value) {
 	to_be_interrupted = 0;
 }
 
-void send_ping(int socket, struct sockaddr_in address, char* to_ip) {
+void send_ping(int socket, struct sockaddr_in address, char* to_ip, int *ttl) {
 	int packet_icmp_seq, packet_transmitted, packet_received, packet_loss;
+	packet_icmp_seq = 0;
+	packet_transmitted = 0;
+	packet_received = 0;
+	packet_loss = 0;
+	struct timeval time_val;
+	time_val.tv_sec = 1;
+	time_val.tv_usec = 0;
+	struct sockaddr_in received_address;
 
 	// times for each packet ----------->> time_start, time_end
 	struct timespec time_start, time_end;
+
+	// set ttl option on the IP
+	setsockopt(socket, SOL_IP, IP_TTL, ttl, sizeof(*ttl));
+
+	// set timeout on the socket level to prevent it from being stuck
+	setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*) &time_val, sizeof(time_val));
+
+	while (to_be_interrupted) { // send echo icmp packets
+		clock_gettime(CLOCK_MONOTONIC, &time_start);
+		//prepare the icmp packet
+		clock_gettime(CLOCK_MONOTONIC, &time_end);
+	}
+
+
 
 	printf("hello");
 }
